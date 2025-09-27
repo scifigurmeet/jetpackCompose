@@ -116,7 +116,7 @@ graph TD
     D --> F[Button - Click Handler]
     E --> G[Text - Count: ]
     E --> H[Text - Counter Value]
-    F --> I[Text - "Click"]
+    F --> I[Text - Click]
     
     style A fill:#e1f5fe
     style B fill:#f3e5f5
