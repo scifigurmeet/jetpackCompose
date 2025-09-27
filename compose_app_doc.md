@@ -37,7 +37,7 @@ graph TD
     F --> G[Row - Horizontal Layout]
     F --> H[Button - Interactive Element]
     
-    G --> I[Text - "Count:" Label]
+    G --> I[Text - Count: Label]
     G --> J[Text - Counter Value]
     
     H --> K[onClick Handler]
