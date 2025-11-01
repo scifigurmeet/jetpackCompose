@@ -54,6 +54,7 @@ Copy this entire code into your `MainActivity.kt`:
 ```kotlin
 package com.example.wikipediasearch
 
+
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -69,9 +70,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
+import okhttp3.OkHttpClient
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
 import retrofit2.http.GET
+import retrofit2.http.Headers
 import retrofit2.http.Query
 
 // ==================== MAIN ACTIVITY ====================
@@ -90,23 +93,24 @@ class MainActivity : ComponentActivity() {
 // These represent the JSON structure from Wikipedia API
 
 data class WikiResponse(
-    val query: Query
+    val query: QueryResponse
 )
 
-data class Query(
+data class QueryResponse(
     val pages: Map<String, Page>
 )
 
 data class Page(
     val pageid: Int,
-    val title: String,
-    val extract: String
+    val title: String?,
+    val extract: String?
 )
 
 // ==================== RETROFIT API ====================
 // Interface for making network calls
 
 interface WikipediaApi {
+    @Headers("User-Agent: WikipediaSearchApp/1.0 (Android)")
     @GET("api.php")
     suspend fun searchArticle(
         @Query("format") format: String = "json",
@@ -124,10 +128,20 @@ interface WikipediaApi {
 
 object RetrofitInstance {
     private const val BASE_URL = "https://en.wikipedia.org/w/"
-    
+
+    private val okHttpClient = OkHttpClient.Builder()
+        .addInterceptor { chain ->
+            val request = chain.request().newBuilder()
+                .addHeader("User-Agent", "WikipediaSearchApp/1.0 (Android)")
+                .build()
+            chain.proceed(request)
+        }
+        .build()
+
     val api: WikipediaApi by lazy {
         Retrofit.Builder()
             .baseUrl(BASE_URL)
+            .client(okHttpClient)
             .addConverterFactory(GsonConverterFactory.create())
             .build()
             .create(WikipediaApi::class.java)
@@ -145,18 +159,18 @@ fun WikipediaSearchApp() {
     var articleExtract by remember { mutableStateOf("") }
     var isLoading by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf("") }
-    
+
     // Coroutine scope for API calls
     val scope = rememberCoroutineScope()
-    
+
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { 
+                title = {
                     Text(
                         "📚 Wikipedia Search",
                         fontWeight = FontWeight.Bold
-                    ) 
+                    )
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.primaryContainer,
@@ -187,7 +201,7 @@ fun WikipediaSearchApp() {
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.SemiBold
                     )
-                    
+
                     // Text Input Field
                     OutlinedTextField(
                         value = searchText,
@@ -198,7 +212,7 @@ fun WikipediaSearchApp() {
                         singleLine = true,
                         enabled = !isLoading
                     )
-                    
+
                     // Search Button
                     Button(
                         onClick = {
@@ -208,25 +222,25 @@ fun WikipediaSearchApp() {
                                 articleExtract = ""
                                 errorMessage = ""
                                 isLoading = true
-                                
+
                                 // Make API call
                                 scope.launch {
                                     try {
                                         val response = RetrofitInstance.api.searchArticle(
                                             titles = searchText
                                         )
-                                        
+
                                         // Extract the first page from response
                                         val page = response.query.pages.values.firstOrNull()
-                                        
-                                        if (page != null && page.extract.isNotEmpty()) {
-                                            articleTitle = page.title
-                                            articleExtract = page.extract
+
+                                        if (page != null && !page.extract.isNullOrEmpty()) {
+                                            articleTitle = page.title ?: "Unknown Title"
+                                            articleExtract = page.extract ?: ""
                                         } else {
                                             errorMessage = "❌ No article found for '$searchText'"
                                         }
                                     } catch (e: Exception) {
-                                        errorMessage = "⚠️ Error: ${e.message}"
+                                        errorMessage = "⚠ Error: ${e.message}"
                                     } finally {
                                         isLoading = false
                                     }
@@ -246,14 +260,14 @@ fun WikipediaSearchApp() {
                     }
                 }
             }
-            
+
             Spacer(modifier = Modifier.height(16.dp))
-            
+
             // ========== LOADING INDICATOR ==========
             if (isLoading) {
                 CircularProgressIndicator()
             }
-            
+
             // ========== ERROR MESSAGE ==========
             if (errorMessage.isNotEmpty()) {
                 Card(
@@ -269,7 +283,7 @@ fun WikipediaSearchApp() {
                     )
                 }
             }
-            
+
             // ========== ARTICLE RESULT ==========
             if (articleTitle.isNotEmpty() && articleExtract.isNotEmpty()) {
                 Card(
@@ -287,9 +301,9 @@ fun WikipediaSearchApp() {
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.primary
                         )
-                        
-                        Divider()
-                        
+
+                        HorizontalDivider()
+
                         // Article Extract
                         Text(
                             text = articleExtract,
@@ -299,7 +313,7 @@ fun WikipediaSearchApp() {
                     }
                 }
             }
-            
+
             // ========== HELP TEXT ==========
             if (articleTitle.isEmpty() && !isLoading && errorMessage.isEmpty()) {
                 Spacer(modifier = Modifier.height(24.dp))
